@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+. "$(cd $(dirname "$0"); pwd)/env"
+
+# LONG_TAG is only used for extracting the BASE_IMAGE and the VERSION, adding our own tags happens in post_push
+LONG_TAG="${SOURCE_BRANCH}"
+if echo "${SOURCE_BRANCH}" | grep -q -v "\-on\-"; then
+    DOCKERFILE_BASE_IMAGE="$(sed -n "s/ARG BASE_IMAGE=\"\(.*\)\"/\1/p" Dockerfile | sed -e '1 s/:/-/; t')"
+    DOCKERFILE_VERSION="$(sed -n "s/ARG VERSION=\"\(.*\)\"/\1/p" Dockerfile)"
+    LONG_TAG="${DOCKERFILE_VERSION}-on-${DOCKERFILE_BASE_IMAGE}"
+fi
+BASE_IMAGE="$(printf "${LONG_TAG}" | awk -F "-on-" '{print $2}' | sed -e '1 s/\-/:/; t')"
+VERSION="$(printf "${LONG_TAG}" | awk -F "-on-" '{print $1}')"
+BUILD_DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+VCS_REF="$(git rev-parse HEAD)"
+
+printf "Build variables:\\n"
+printf "BASE_IMAGE=\"${BASE_IMAGE}\"\\n"
+printf "VERSION=\"${VERSION}\"\\n"
+printf "BUILD_DATE=\"${BUILD_DATE}\"\\n"
+printf "VCS_REF=\"${VCS_REF}\"\\n"
+printf "DOCKERFILE_PATH=\"${DOCKERFILE_PATH}\"\\n"
+printf "IMAGE_NAME=\"${IMAGE_NAME}\"\\n"
+
+docker build \
+    --build-arg BASE_IMAGE="${BASE_IMAGE}" \
+    --build-arg VERSION="${VERSION}" \
+    --build-arg BUILD_DATE="${BUILD_DATE}" \
+    --build-arg VCS_REF="${VCS_REF}" \
+    --build-arg IMAGE_NAME="${IMAGE_NAME}" \
+    --file "${DOCKERFILE_PATH}" \
+    --tag "${IMAGE_NAME}" \
+    "."

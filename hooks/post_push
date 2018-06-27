@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+. "$(cd $(dirname "$0"); pwd)/env"
+
+if test "${SOURCE_BRANCH}" = "master"; then
+    DOCKERFILE_BASE_IMAGE="$(sed -n "s/ARG BASE_IMAGE=\"\(.*\)\"/\1/p" Dockerfile | sed -e '1 s/:/-/; t')"
+    DOCKERFILE_VERSION="$(sed -n "s/ARG VERSION=\"\(.*\)\"/\1/p" Dockerfile)"
+    # Tag the latest buiild with the complete long tag.
+    LONG_TAG="${DOCKERFILE_VERSION}-on-${DOCKERFILE_BASE_IMAGE}"
+    printf "Pushing ${IMAGE_NAME} also as ${DOCKER_REPO}:${LONG_TAG}\\n"
+    docker tag "${IMAGE_NAME}" "${DOCKER_REPO}:${LONG_TAG}"
+    docker push "${DOCKER_REPO}:${LONG_TAG}"
+    # Tag the latest buiild with the short version tag.
+    SHORT_TAG="${DOCKERFILE_VERSION}"
+    printf "Pushing ${IMAGE_NAME} also as ${DOCKER_REPO}:${SHORT_TAG}\\n"
+    docker tag "${IMAGE_NAME}" "${DOCKER_REPO}:${SHORT_TAG}"
+    docker push "${DOCKER_REPO}:${SHORT_TAG}"
+fi
+
+# Tag the latest build with the short git sha.
+GIT_SHA_TAG="${SOURCE_COMMIT:0:12}"
+printf "Pushing ${IMAGE_NAME} also as ${DOCKER_REPO}:${GIT_SHA_TAG}\\n"
+docker tag "${IMAGE_NAME}" "${DOCKER_REPO}:${GIT_SHA_TAG}"
+docker push "${DOCKER_REPO}:${GIT_SHA_TAG}"
+
+# Invoke all downstream build triggers.
+for url in $(echo ${NEXT_BUILD_TRIGGERS} | sed "s/,/ /g")
+do
+    curl -X POST ${url}
+done
