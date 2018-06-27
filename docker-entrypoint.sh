@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 set -e
 
 isCommand() {
@@ -23,7 +23,7 @@ isCommand() {
   return 1
 }
 
-if [ "${1:0:1}" = "-" ]; then
+if [ "$(printf %c "$1")" = '-' ]; then
   set -- /sbin/tini -- php /composer/vendor/bin/phpdoc "$@"
 elif [ "$1" = "/composer/vendor/bin/phpdoc" ]; then
   set -- /sbin/tini -- php "$@"

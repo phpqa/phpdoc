@@ -1,10 +1,10 @@
 # Set defaults
 
 ARG COMPOSER_IMAGE="composer:1.6.4"
-ARG BASE_IMAGE="php:7.2-alpine"
+ARG BASE_IMAGE="php:7.2"
 ARG PACKAGIST_NAME="phpdocumentor/phpdocumentor"
 ARG PHPQA_NAME="phpdoc"
-ARG VERSION="2.8.5"
+ARG VERSION="dev-master"
 
 # Download with Composer - https://getcomposer.org/
 
@@ -25,11 +25,39 @@ ARG IMAGE_NAME
 
 # Install Tini - https://github.com/krallin/tini
 
-RUN apk add --no-cache tini
+ARG TINI_VERSION="v0.18.0"
+ARG TINI_GPG_KEY="595E85A6B1B4779EA4DAAEC70B588DFF0527A9B7"
+
+RUN set -x \
+    && apt-get update \
+    && apt-get install -y gnupg2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && export TINI_HOME="/sbin" \
+    && curl -fsSL "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini" -o "${TINI_HOME}/tini" \
+    && curl -fsSL "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini.asc" -o "${TINI_HOME}/tini.asc" \
+    && export GNUPGHOME="$(mktemp -d)" \
+    && ( \
+        gpg --keyserver hkp://pgp.mit.edu:80 --recv-keys "${TINI_GPG_KEY}" \
+        || gpg --keyserver hkp://keyserver.pgp.com:80 --recv-keys "${TINI_GPG_KEY}" \
+        || gpg --keyserver hkp://ipv4.pool.sks-keyservers.net --recv-keys "${TINI_GPG_KEY}" \
+        || gpg --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys "${TINI_GPG_KEY}" \
+    ) \
+    && gpg --batch --verify "${TINI_HOME}/tini.asc" "${TINI_HOME}/tini" \
+    && rm -r "$GNUPGHOME" "${TINI_HOME}/tini.asc" \
+    && chmod +x "${TINI_HOME}/tini" \
+    && "${TINI_HOME}/tini" -h
 
 # Install phpDocumentor - https://github.com/phpDocumentor/phpDocumentor2
-RUN apk add --no-cache libxslt-dev \
-    && docker-php-ext-install -j$(nproc) xsl zip
+# - dependency: intl
+# - dependency: zip
+# - dependency: xsl
+# - dependency: graphviz
+
+RUN set -x \
+    && apt-get update \
+    && apt-get install -yq curl git libicu-dev libicu57 zlib1g-dev libxslt-dev graphviz \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-install -j$(nproc) intl zip xsl
 
 COPY --from=composer "/composer/" "/composer/"
 ENV PATH /composer/vendor/bin:${PATH}
