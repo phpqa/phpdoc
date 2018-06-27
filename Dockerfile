@@ -1,22 +1,16 @@
 # Set defaults
 
-ARG COMPOSER_IMAGE="composer:1.6.4"
 ARG BASE_IMAGE="php:7.2"
 ARG PACKAGIST_NAME="phpdocumentor/phpdocumentor"
 ARG PHPQA_NAME="phpdoc"
 ARG VERSION="dev-master"
 
-# Download with Composer - https://getcomposer.org/
-
-FROM ${COMPOSER_IMAGE} as composer
-ARG PACKAGIST_NAME
-ARG VERSION
-RUN COMPOSER_HOME="/composer" \
-    composer global require --prefer-dist --no-progress --dev ${PACKAGIST_NAME}:${VERSION}
-
 # Build image
 
 FROM ${BASE_IMAGE}
+ARG COMPOSER_IMAGE
+ARG PACKAGIST_NAME
+ARG VERSION
 ARG PHPQA_NAME
 ARG VERSION
 ARG BUILD_DATE
@@ -43,7 +37,7 @@ RUN set -x \
         || gpg --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys "${TINI_GPG_KEY}" \
     ) \
     && gpg --batch --verify "${TINI_HOME}/tini.asc" "${TINI_HOME}/tini" \
-    && rm -r "$GNUPGHOME" "${TINI_HOME}/tini.asc" \
+    && (rm -rf "${GNUPGHOME}" "${TINI_HOME}/tini.asc" || true) \
     && chmod +x "${TINI_HOME}/tini" \
     && "${TINI_HOME}/tini" -h
 
@@ -59,7 +53,8 @@ RUN set -x \
     && rm -rf /var/lib/apt/lists/* \
     && docker-php-ext-install -j$(nproc) intl zip xsl
 
-COPY --from=composer "/composer/" "/composer/"
+COPY --from=composer:1.6.5 /usr/bin/composer /usr/bin/composer
+RUN COMPOSER_HOME="/composer" composer global require --prefer-dist --no-progress --dev ${PACKAGIST_NAME}:${VERSION}
 ENV PATH /composer/vendor/bin:${PATH}
 
 # Add entrypoint script
